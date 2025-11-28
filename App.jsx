@@ -164,7 +164,7 @@ export default function App() {
     description: '',
     amount: '',
     type: 'expense',
-    date: new Date().toLocaleDateString('pt-BR').split('/').reverse().join('-'),
+    date: getLocalDate(),
     category: 'Geral'
   });
 
@@ -288,7 +288,7 @@ export default function App() {
       description: '',
       amount: '',
       type: 'expense',
-      date: new Date().toLocaleDateString('pt-BR').split('/').reverse().join('-'),
+      date: getLocalDate(),
       category: 'Geral'
     });
 
@@ -350,11 +350,21 @@ export default function App() {
     setIsDarkMode(!isDarkMode);
   };
 
+  const getLocalDate = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
-      const tDate = new Date(t.date); // Supabase date is YYYY-MM-DD string usually, works with Date constructor
-      const tYear = tDate.getUTCFullYear();
-      const tMonth = tDate.getUTCMonth();
+      if (!t.date) return false;
+      const [yearStr, monthStr] = t.date.split('-');
+      const tYear = parseInt(yearStr);
+      const tMonth = parseInt(monthStr) - 1; // Month is 0-indexed in JS Date but 1-indexed in string
+
       if (currentView === 'economy') return tYear === selectedYear;
       return tYear === selectedYear && tMonth === selectedMonth;
     });
