@@ -243,9 +243,19 @@ export default function App() {
     const channel = supabase
       .channel('transactions_changes')
       .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${user.id}` },
+        { event: 'INSERT', schema: 'public', table: 'transactions', filter: `user_id=eq.${user.id}` },
         (payload) => {
-          fetchTransactions(false); // Refresh data on change without loading spinner
+          setTransactions(prev => {
+            // Avoid duplicate if already added locally
+            if (prev.some(t => t.id === payload.new.id)) return prev;
+            return [payload.new, ...prev];
+          });
+        }
+      )
+      .on('postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'transactions', filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          setTransactions(prev => prev.filter(t => t.id !== payload.old.id));
         }
       )
       .subscribe();
