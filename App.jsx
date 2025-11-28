@@ -323,8 +323,8 @@ export default function App() {
         setTransactions(prev => prev.map(t => t.id === tempId ? data[0] : t));
       }
 
-      // 4. Silent Re-fetch to ensure consistency
-      fetchTransactions(false);
+      // 4. Force Page Reload (F5) as requested
+      window.location.reload();
     } catch (error) {
       console.error("Erro ao adicionar:", error);
       // 5. Rollback on error
@@ -350,8 +350,8 @@ export default function App() {
           // Optionally revert state here if needed, but for now we keep it simple
         }
 
-        // Silent Re-fetch to ensure consistency
-        fetchTransactions(false);
+        // Force Page Reload (F5) as requested
+        window.location.reload();
       } catch (error) {
         console.error("Erro ao deletar:", error);
         alert("Erro ao deletar. A página será recarregada.");
