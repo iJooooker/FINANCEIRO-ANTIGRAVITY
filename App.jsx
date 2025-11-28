@@ -322,12 +322,6 @@ export default function App() {
       if (data) {
         setTransactions(prev => prev.map(t => t.id === tempId ? data[0] : t));
       }
-
-      // 4. Force Page Reload (F5) as requested
-      // Adding a small delay to ensure the user sees the action and the browser processes it
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
     } catch (error) {
       console.error("Erro ao adicionar:", error);
       // 5. Rollback on error
@@ -352,15 +346,10 @@ export default function App() {
           throw error;
           // Optionally revert state here if needed, but for now we keep it simple
         }
-
-        // Force Page Reload (F5) as requested
-        setTimeout(() => {
-          window.location.reload();
-        }, 500);
       } catch (error) {
         console.error("Erro ao deletar:", error);
         alert("Erro ao deletar. A página será recarregada.");
-        window.location.reload(); // Fallback to sync state
+        // Fallback to sync state
       }
     }
   };
