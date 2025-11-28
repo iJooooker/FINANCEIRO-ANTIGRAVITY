@@ -169,6 +169,23 @@ export default function App() {
   });
 
   // --- AUTENTICAÇÃO E DADOS ---
+
+  const fetchTransactions = async (showLoading = true) => {
+    if (!user) return;
+    if (showLoading) setLoading(true);
+
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('date', { ascending: false });
+
+    if (error) console.error('Error fetching transactions:', error);
+    else setTransactions(data || []);
+
+    if (showLoading) setLoading(false);
+  };
+
   useEffect(() => {
     // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -220,20 +237,7 @@ export default function App() {
       return;
     }
 
-    const fetchTransactions = async () => {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('date', { ascending: false });
-
-      if (error) console.error('Error fetching transactions:', error);
-      else setTransactions(data || []);
-      setLoading(false);
-    };
-
-    fetchTransactions();
+    fetchTransactions(true);
 
     // Realtime subscription
     const channel = supabase
@@ -241,7 +245,7 @@ export default function App() {
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${user.id}` },
         (payload) => {
-          fetchTransactions(); // Refresh data on change
+          fetchTransactions(false); // Refresh data on change without loading spinner
         }
       )
       .subscribe();
@@ -273,11 +277,13 @@ export default function App() {
 
       if (error) throw error;
 
+      // Update local state immediately for instant feedback
       if (data) {
         setTransactions(prev => [data[0], ...prev]);
       }
 
-
+      // Force a re-fetch to ensure consistency (mini update)
+      fetchTransactions(false);
 
       setIsModalOpen(false);
       setNewTransaction({
