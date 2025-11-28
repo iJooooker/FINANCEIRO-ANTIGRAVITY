@@ -283,6 +283,14 @@ export default function App() {
 
     // 1. Optimistic Update: Add immediately to UI
     setTransactions(prev => [tempTransaction, ...prev]);
+
+    // Auto-switch view to the transaction's date so user sees it immediately
+    if (newTransaction.date) {
+      const [y, m] = newTransaction.date.split('-');
+      setSelectedYear(parseInt(y));
+      setSelectedMonth(parseInt(m) - 1);
+    }
+
     setIsModalOpen(false);
     setNewTransaction({
       description: '',
