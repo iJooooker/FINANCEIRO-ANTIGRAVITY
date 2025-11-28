@@ -322,9 +322,12 @@ export default function App() {
       if (data) {
         setTransactions(prev => prev.map(t => t.id === tempId ? data[0] : t));
       }
+
+      // 4. Silent Re-fetch to ensure consistency
+      fetchTransactions(false);
     } catch (error) {
       console.error("Erro ao adicionar:", error);
-      // 4. Rollback on error
+      // 5. Rollback on error
       setTransactions(prev => prev.filter(t => t.id !== tempId));
       alert("Erro ao salvar transação. Tente novamente.");
     }
@@ -346,6 +349,9 @@ export default function App() {
           throw error;
           // Optionally revert state here if needed, but for now we keep it simple
         }
+
+        // Silent Re-fetch to ensure consistency
+        fetchTransactions(false);
       } catch (error) {
         console.error("Erro ao deletar:", error);
         alert("Erro ao deletar. A página será recarregada.");
