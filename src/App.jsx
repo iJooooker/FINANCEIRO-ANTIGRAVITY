@@ -140,6 +140,14 @@ const formatDate = (dateString) => {
   return `${day}/${month}/${year}`;
 };
 
+const getLocalDate = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 // --- COMPONENTE PRINCIPAL ---
 export default function App() {
   const [user, setUser] = useState(null);
@@ -358,13 +366,7 @@ export default function App() {
     setIsDarkMode(!isDarkMode);
   };
 
-  const getLocalDate = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
+
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
