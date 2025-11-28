@@ -270,7 +270,30 @@ export default function App() {
     e.preventDefault();
     if (!user || !newTransaction.amount || !newTransaction.description) return;
 
+    const tempId = Date.now();
+    const tempTransaction = {
+      id: tempId,
+      user_id: user.id,
+      description: newTransaction.description,
+      amount: parseFloat(newTransaction.amount),
+      type: newTransaction.type,
+      date: newTransaction.date,
+      category: newTransaction.category
+    };
+
+    // 1. Optimistic Update: Add immediately to UI
+    setTransactions(prev => [tempTransaction, ...prev]);
+    setIsModalOpen(false);
+    setNewTransaction({
+      description: '',
+      amount: '',
+      type: 'expense',
+      date: new Date().toLocaleDateString('pt-BR').split('/').reverse().join('-'),
+      category: 'Geral'
+    });
+
     try {
+      // 2. Perform actual insert
       const { data, error } = await supabase
         .from('transactions')
         .insert([
@@ -287,24 +310,15 @@ export default function App() {
 
       if (error) throw error;
 
-      // Update local state immediately for instant feedback
+      // 3. Replace temp transaction with real one
       if (data) {
-        setTransactions(prev => [data[0], ...prev]);
+        setTransactions(prev => prev.map(t => t.id === tempId ? data[0] : t));
       }
-
-      // Removed fetchTransactions(false) to prevent race condition
-
-      setIsModalOpen(false);
-      setNewTransaction({
-        description: '',
-        amount: '',
-        type: 'expense',
-        date: new Date().toLocaleDateString('pt-BR').split('/').reverse().join('-'), // YYYY-MM-DD in local time
-        category: 'Geral'
-      });
     } catch (error) {
       console.error("Erro ao adicionar:", error);
-      alert("Erro ao salvar transação. Verifique se a tabela 'transactions' existe.");
+      // 4. Rollback on error
+      setTransactions(prev => prev.filter(t => t.id !== tempId));
+      alert("Erro ao salvar transação. Tente novamente.");
     }
   };
 
