@@ -324,7 +324,10 @@ export default function App() {
       }
 
       // 4. Force Page Reload (F5) as requested
-      window.location.reload();
+      // Adding a small delay to ensure the user sees the action and the browser processes it
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
     } catch (error) {
       console.error("Erro ao adicionar:", error);
       // 5. Rollback on error
@@ -351,7 +354,9 @@ export default function App() {
         }
 
         // Force Page Reload (F5) as requested
-        window.location.reload();
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
       } catch (error) {
         console.error("Erro ao deletar:", error);
         alert("Erro ao deletar. A página será recarregada.");
