@@ -164,11 +164,28 @@ export default function App() {
     description: '',
     amount: '',
     type: 'expense',
-    date: new Date().toISOString().split('T')[0],
+    date: getLocalDate(),
     category: 'Geral'
   });
 
   // --- AUTENTICAÇÃO E DADOS ---
+
+  const fetchTransactions = async (showLoading = true) => {
+    if (!user) return;
+    if (showLoading) setLoading(true);
+
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('date', { ascending: false });
+
+    if (error) console.error('Error fetching transactions:', error);
+    else setTransactions(data || []);
+
+    if (showLoading) setLoading(false);
+  };
+
   useEffect(() => {
     // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -220,28 +237,25 @@ export default function App() {
       return;
     }
 
-    const fetchTransactions = async () => {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('date', { ascending: false });
-
-      if (error) console.error('Error fetching transactions:', error);
-      else setTransactions(data || []);
-      setLoading(false);
-    };
-
-    fetchTransactions();
+    fetchTransactions(true);
 
     // Realtime subscription
     const channel = supabase
       .channel('transactions_changes')
       .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${user.id}` },
+        { event: 'INSERT', schema: 'public', table: 'transactions', filter: `user_id=eq.${user.id}` },
         (payload) => {
-          fetchTransactions(); // Refresh data on change
+          setTransactions(prev => {
+            // Avoid duplicate if already added locally
+            if (prev.some(t => t.id === payload.new.id)) return prev;
+            return [payload.new, ...prev];
+          });
+        }
+      )
+      .on('postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'transactions', filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          setTransactions(prev => prev.filter(t => t.id !== payload.old.id));
         }
       )
       .subscribe();
@@ -256,8 +270,39 @@ export default function App() {
     e.preventDefault();
     if (!user || !newTransaction.amount || !newTransaction.description) return;
 
+    const tempId = Date.now();
+    const tempTransaction = {
+      id: tempId,
+      user_id: user.id,
+      description: newTransaction.description,
+      amount: parseFloat(newTransaction.amount),
+      type: newTransaction.type,
+      date: newTransaction.date,
+      category: newTransaction.category
+    };
+
+    // 1. Optimistic Update: Add immediately to UI
+    setTransactions(prev => [tempTransaction, ...prev]);
+
+    // Auto-switch view to the transaction's date so user sees it immediately
+    if (newTransaction.date) {
+      const [y, m] = newTransaction.date.split('-');
+      setSelectedYear(parseInt(y));
+      setSelectedMonth(parseInt(m) - 1);
+    }
+
+    setIsModalOpen(false);
+    setNewTransaction({
+      description: '',
+      amount: '',
+      type: 'expense',
+      date: getLocalDate(),
+      category: 'Geral'
+    });
+
     try {
-      const { error } = await supabase
+      // 2. Perform actual insert
+      const { data, error } = await supabase
         .from('transactions')
         .insert([
           {
@@ -268,36 +313,43 @@ export default function App() {
             date: newTransaction.date,
             category: newTransaction.category
           }
-        ]);
+        ])
+        .select();
 
       if (error) throw error;
 
-      setIsModalOpen(false);
-      setNewTransaction({
-        description: '',
-        amount: '',
-        type: 'expense',
-        date: new Date().toISOString().split('T')[0],
-        category: 'Geral'
-      });
+      // 3. Replace temp transaction with real one
+      if (data) {
+        setTransactions(prev => prev.map(t => t.id === tempId ? data[0] : t));
+      }
     } catch (error) {
       console.error("Erro ao adicionar:", error);
-      alert("Erro ao salvar transação. Verifique se a tabela 'transactions' existe.");
+      // 5. Rollback on error
+      setTransactions(prev => prev.filter(t => t.id !== tempId));
+      alert("Erro ao salvar transação. Tente novamente.");
     }
   };
 
   const handleDelete = async (id) => {
     if (!user) return;
     if (window.confirm("Tem certeza que deseja excluir?")) {
+      // Optimistic update: remove immediately from UI
+      setTransactions(prev => prev.filter(t => t.id !== id));
+
       try {
         const { error } = await supabase
           .from('transactions')
           .delete()
           .eq('id', id);
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+          // Optionally revert state here if needed, but for now we keep it simple
+        }
       } catch (error) {
         console.error("Erro ao deletar:", error);
+        alert("Erro ao deletar. A página será recarregada.");
+        // Fallback to sync state
       }
     }
   };
@@ -306,11 +358,21 @@ export default function App() {
     setIsDarkMode(!isDarkMode);
   };
 
+  const getLocalDate = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
-      const tDate = new Date(t.date); // Supabase date is YYYY-MM-DD string usually, works with Date constructor
-      const tYear = tDate.getUTCFullYear();
-      const tMonth = tDate.getUTCMonth();
+      if (!t.date) return false;
+      const [yearStr, monthStr] = t.date.split('-');
+      const tYear = parseInt(yearStr);
+      const tMonth = parseInt(monthStr) - 1; // Month is 0-indexed in JS Date but 1-indexed in string
+
       if (currentView === 'economy') return tYear === selectedYear;
       return tYear === selectedYear && tMonth === selectedMonth;
     });
@@ -507,8 +569,8 @@ export default function App() {
                     key={m}
                     onClick={() => setSelectedMonth(i)}
                     className={`px-3 py-1 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${selectedMonth === i
-                        ? 'bg-[--primary] text-[--primary-foreground]'
-                        : 'bg-[--muted] text-[--muted-foreground] hover:bg-[--accent] hover:text-[--accent-foreground]'
+                      ? 'bg-[--primary] text-[--primary-foreground]'
+                      : 'bg-[--muted] text-[--muted-foreground] hover:bg-[--accent] hover:text-[--accent-foreground]'
                       }`}
                   >
                     {m}
@@ -939,8 +1001,8 @@ function SidebarItem({ icon, label, active, onClick }) {
     <button
       onClick={onClick}
       className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${active
-          ? 'bg-[--sidebar-primary] text-[--sidebar-primary-foreground] shadow-md'
-          : 'text-[--muted-foreground] hover:bg-[--sidebar-accent] hover:text-[--sidebar-accent-foreground]'
+        ? 'bg-[--sidebar-primary] text-[--sidebar-primary-foreground] shadow-md'
+        : 'text-[--muted-foreground] hover:bg-[--sidebar-accent] hover:text-[--sidebar-accent-foreground]'
         }`}
     >
       {icon}
