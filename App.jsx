@@ -164,7 +164,7 @@ export default function App() {
     description: '',
     amount: '',
     type: 'expense',
-    date: new Date().toISOString().split('T')[0],
+    date: new Date().toLocaleDateString('pt-BR').split('/').reverse().join('-'),
     category: 'Geral'
   });
 
@@ -282,15 +282,14 @@ export default function App() {
         setTransactions(prev => [data[0], ...prev]);
       }
 
-      // Force a re-fetch to ensure consistency (mini update)
-      fetchTransactions(false);
+      // Removed fetchTransactions(false) to prevent race condition
 
       setIsModalOpen(false);
       setNewTransaction({
         description: '',
         amount: '',
         type: 'expense',
-        date: new Date().toISOString().split('T')[0],
+        date: new Date().toLocaleDateString('pt-BR').split('/').reverse().join('-'), // YYYY-MM-DD in local time
         category: 'Geral'
       });
     } catch (error) {
@@ -302,15 +301,23 @@ export default function App() {
   const handleDelete = async (id) => {
     if (!user) return;
     if (window.confirm("Tem certeza que deseja excluir?")) {
+      // Optimistic update: remove immediately from UI
+      setTransactions(prev => prev.filter(t => t.id !== id));
+
       try {
         const { error } = await supabase
           .from('transactions')
           .delete()
           .eq('id', id);
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+          // Optionally revert state here if needed, but for now we keep it simple
+        }
       } catch (error) {
         console.error("Erro ao deletar:", error);
+        alert("Erro ao deletar. A página será recarregada.");
+        window.location.reload(); // Fallback to sync state
       }
     }
   };
